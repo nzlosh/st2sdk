@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-20.04
+
+    services:
+      mongo:
+        image: mongo:4.4
+        ports:
+          - 27017:27017
+
+      rabbitmq:
+        image: rabbitmq:3.8-management
+        options: >-
+          --name rabbitmq
+        ports:
+          - 5671:5671/tcp   # AMQP SSL port
+          - 5672:5672/tcp   # AMQP standard port
+          - 15672:15672/tcp # Management: HTTP, CLI
+    env:
+      # working_directory: ~/repo
+      VIRTUALENV_DIR: "~/virtualenv"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Install dependencies
+        run: |
+          git clone -b master git@github.com:stackstorm-exchange/ci.git ~/ci
+          sudo pip install tox
+          ~/ci/.circle/dependencies
+      - name: Compile
+        run: |
+          sudo python setup.py install ; sudo pip uninstall -y st2sdk
+      
+      - name: Test
+        run: |
+          tox -vvv -e py36-sdist,py36
+          PATH=.tox/py36-sdist/bin:$PATH .circle/test_creating_pack
